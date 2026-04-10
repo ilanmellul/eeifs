@@ -1,5 +1,23 @@
 @import "tailwindcss";
 
+/* Safelist — classes construites dynamiquement non détectées par Tailwind v4 */
+@source inline("{
+  from-orange-400,to-rose-500,
+  from-amber-400,to-orange-500,
+  from-rose-400,to-pink-500,
+  from-teal-400,to-emerald-500,
+  from-violet-400,to-purple-500,
+  from-sky-400,to-blue-500,
+  from-rose-500,to-purple-600,
+  bg-violet-100,text-violet-600,
+  bg-sky-100,text-sky-600,
+  bg-amber-100,text-amber-600,
+  bg-orange-100,text-orange-600,
+  bg-rose-100,text-rose-600,
+  bg-emerald-100,text-emerald-600,
+  bg-green-100,text-green-600
+}");
+
 :root {
   --background: #FFF8F2;
   --foreground: #1a1a1a;
