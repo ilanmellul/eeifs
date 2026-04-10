@@ -92,7 +92,7 @@ export default function PhotoGallery({ photos }: PhotoGalleryProps) {
   return (
     <>
       {/* Calendrier / filtre par date */}
-      {dates.length > 1 && (
+      {dates.length > 0 && (
         <div className="mb-4">
           <div className="flex items-center gap-2 mb-3">
             <CalendarDays className="w-4 h-4 text-orange-400" />
