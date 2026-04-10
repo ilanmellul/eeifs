@@ -9,27 +9,6 @@ interface PostCardProps {
   currentUserId?: string
 }
 
-const typeConfig = {
-  photo: { icon: Camera, label: 'Photo', color: 'bg-violet-100 text-violet-600' },
-  info: { icon: Info, label: 'Info', color: 'bg-sky-100 text-sky-600' },
-  programme: { icon: CalendarDays, label: 'Programme', color: 'bg-amber-100 text-amber-600' },
-}
-
-// Warm gradient per initial letter
-const avatarGradients = [
-  'from-orange-400 to-rose-500',
-  'from-amber-400 to-orange-500',
-  'from-rose-400 to-pink-500',
-  'from-teal-400 to-emerald-500',
-  'from-violet-400 to-purple-500',
-  'from-sky-400 to-blue-500',
-]
-
-function getGradient(name: string) {
-  const code = name.charCodeAt(0) % avatarGradients.length
-  return avatarGradients[code]
-}
-
 function timeAgo(dateStr: string) {
   const diff = Date.now() - new Date(dateStr).getTime()
   const minutes = Math.floor(diff / 60000)
@@ -40,19 +19,27 @@ function timeAgo(dateStr: string) {
   return `Il y a ${Math.floor(hours / 24)}j`
 }
 
+// Couleur avatar basée sur la première lettre — inline style évite les classes dynamiques
+function getAvatarColor(name: string): string {
+  const hue = (name.charCodeAt(0) * 47 + 30) % 360
+  return `hsl(${hue}, 65%, 55%)`
+}
+
 export default function PostCard({ post, campId, currentUserId }: PostCardProps) {
-  const { icon: Icon, label, color } = typeConfig[post.type]
   const hasPhotos = post.photos && post.photos.length > 0
   const authorName = post.profiles?.name ?? 'Animateur'
   const authorInitial = authorName[0]?.toUpperCase() ?? '?'
-  const isAnimateur = post.profiles?.role === 'animateur'
-  const gradient = getGradient(authorName)
+  const isAnimateur = post.profiles?.role === 'animateur' || post.profiles?.role === 'admin'
+  const avatarColor = getAvatarColor(authorName)
 
   return (
     <article className="bg-white border border-orange-50 rounded-3xl overflow-hidden shadow-sm shadow-orange-100">
       {/* Author header */}
       <div className="flex items-center gap-3 px-4 py-3">
-        <div className={`w-10 h-10 rounded-full bg-gradient-to-br ${gradient} flex items-center justify-center shrink-0 shadow-sm`}>
+        <div
+          className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 shadow-sm"
+          style={{ background: avatarColor }}
+        >
           <span className="text-white font-bold text-sm">{authorInitial}</span>
         </div>
         <div className="flex-1 min-w-0">
@@ -66,10 +53,22 @@ export default function PostCard({ post, campId, currentUserId }: PostCardProps)
           </div>
           <p className="text-xs text-gray-400">{timeAgo(post.created_at)}</p>
         </div>
-        <span className={`flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full ${color}`}>
-          <Icon className="w-3 h-3" />
-          {label}
-        </span>
+
+        {post.type === 'photo' && (
+          <span className="flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-violet-100 text-violet-600">
+            <Camera className="w-3 h-3" /> Photo
+          </span>
+        )}
+        {post.type === 'info' && (
+          <span className="flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-sky-100 text-sky-600">
+            <Info className="w-3 h-3" /> Info
+          </span>
+        )}
+        {post.type === 'programme' && (
+          <span className="flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-amber-100 text-amber-600">
+            <CalendarDays className="w-3 h-3" /> Programme
+          </span>
+        )}
       </div>
 
       {/* Photos */}
@@ -82,13 +81,8 @@ export default function PostCard({ post, campId, currentUserId }: PostCardProps)
                 post.photos!.length === 1 ? 'aspect-[4/3]' : 'aspect-square'
               } ${post.photos!.length === 3 && i === 0 ? 'col-span-2 aspect-video' : ''}`}
             >
-              <Image
-                src={photo.url}
-                alt=""
-                fill
-                className="object-cover"
-                sizes="(max-width: 768px) 100vw, 600px"
-              />
+              <Image src={photo.url} alt="" fill className="object-cover"
+                sizes="(max-width: 768px) 100vw, 600px" />
             </div>
           ))}
         </div>
@@ -104,7 +98,6 @@ export default function PostCard({ post, campId, currentUserId }: PostCardProps)
         </div>
       )}
 
-      {/* Comments */}
       <CommentSection
         postId={post.id}
         campId={campId}

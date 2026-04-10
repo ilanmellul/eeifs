@@ -14,29 +14,38 @@ export default function CampCard({ camp }: CampCardProps) {
   const now = new Date()
   const start = new Date(camp.date_start)
   const end = new Date(camp.date_end)
-
-  let statusLabel = 'À venir'
-  let statusClass = 'bg-sky-100 text-sky-600'
-  let borderClass = 'border-orange-100 hover:border-orange-300'
-  if (now >= start && now <= end) {
-    statusLabel = '🔴 En cours'
-    statusClass = 'bg-emerald-100 text-emerald-600'
-    borderClass = 'border-emerald-200 hover:border-emerald-400'
-  } else if (now > end) {
-    statusLabel = 'Terminé'
-    statusClass = 'bg-gray-100 text-gray-400'
-    borderClass = 'border-gray-100 hover:border-gray-200'
-  }
+  const isActive = now >= start && now <= end
+  const isPast = now > end
 
   return (
     <Link href={`/camp/${camp.id}`}>
-      <div className={`group bg-white rounded-2xl border p-5 hover:shadow-md transition-all duration-200 ${borderClass}`}>
+      <div className={`group bg-white rounded-2xl border p-5 hover:shadow-md transition-all duration-200 ${
+        isActive ? 'border-emerald-200 hover:border-emerald-400'
+        : isPast  ? 'border-gray-100 hover:border-gray-200'
+        :           'border-orange-100 hover:border-orange-300'
+      }`}>
         <div className="flex items-start justify-between gap-3">
           <div className="flex-1 min-w-0">
-            <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${statusClass}`}>
-              {statusLabel}
-            </span>
-            <h2 className="font-bold text-gray-900 text-lg mt-2 truncate group-hover:text-orange-500 transition-colors">
+            {isActive && (
+              <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-600">
+                🔴 En cours
+              </span>
+            )}
+            {isPast && (
+              <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-gray-100 text-gray-400">
+                Terminé
+              </span>
+            )}
+            {!isActive && !isPast && (
+              <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-sky-100 text-sky-600">
+                À venir
+              </span>
+            )}
+            <h2 className={`font-bold text-gray-900 text-lg mt-2 truncate transition-colors ${
+              isActive ? 'group-hover:text-emerald-600'
+              : isPast  ? 'group-hover:text-gray-500'
+              :           'group-hover:text-orange-500'
+            }`}>
               {camp.name}
             </h2>
             <div className="flex items-center gap-1.5 mt-1.5 text-sm text-gray-400">
