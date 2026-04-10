@@ -20,6 +20,14 @@ const POST_TYPES: { value: PostType; label: string; icon: React.ReactNode }[] = 
 
 export default function PostForm({ campId, onSuccess }: PostFormProps) {
   const [type, setType] = useState<PostType>('info')
+
+  function changeType(newType: PostType) {
+    setType(newType)
+    if (newType !== 'photo') {
+      previews.forEach(({ url }) => URL.revokeObjectURL(url))
+      setPreviews([])
+    }
+  }
   const [previews, setPreviews] = useState<{ file: File; url: string }[]>([])
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
@@ -84,7 +92,7 @@ export default function PostForm({ campId, onSuccess }: PostFormProps) {
           <button
             key={value}
             type="button"
-            onClick={() => setType(value)}
+            onClick={() => changeType(value)}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-semibold transition-all ${
               type === value
                 ? 'bg-gradient-to-r from-orange-400 to-rose-500 text-white shadow-sm shadow-orange-200'
@@ -109,8 +117,8 @@ export default function PostForm({ campId, onSuccess }: PostFormProps) {
         className="w-full px-4 py-3 rounded-xl border border-orange-100 focus:outline-none focus:ring-2 focus:ring-orange-300 focus:border-transparent text-sm resize-none placeholder:text-gray-300 bg-orange-50/40"
       />
 
-      {/* Photo upload */}
-      <div>
+      {/* Photo upload — uniquement si type photo */}
+      {type === 'photo' && <div>
         <input
           ref={fileInputRef}
           type="file"
@@ -145,7 +153,7 @@ export default function PostForm({ campId, onSuccess }: PostFormProps) {
             ))}
           </div>
         )}
-      </div>
+      </div>}
 
       {error && (
         <p className="text-sm text-red-500 bg-red-50 border border-red-200 rounded-xl px-3 py-2">
