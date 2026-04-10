@@ -2,30 +2,29 @@
 
 import { createClient } from '@/lib/supabase/server'
 
-// Generate a signed URL valid for 1 hour
-export async function getSignedUrl(path: string): Promise<string | null> {
-  const supabase = await createClient()
-  const { data, error } = await supabase.storage
-    .from('photosre')
-    .createSignedUrl(path, 3600)
+const SIGNED_URL_EXPIRY = 60 * 60 * 24 // 24h
+const BATCH_SIZE = 50 // max paths par appel Supabase
 
-  if (error) return null
-  return data.signedUrl
-}
-
-// Batch: resolve signed URLs for multiple paths
+// Batch avec chunking pour éviter les crashs sur beaucoup de photos
 export async function resolveSignedUrls(paths: string[]): Promise<Record<string, string>> {
   if (paths.length === 0) return {}
   const supabase = await createClient()
-  const { data, error } = await supabase.storage
-    .from('photosre')
-    .createSignedUrls(paths, 3600)
 
-  if (error || !data) return {}
+  const result: Record<string, string> = {}
 
-  return Object.fromEntries(
+  // Découper en chunks de 50
+  for (let i = 0; i < paths.length; i += BATCH_SIZE) {
+    const chunk = paths.slice(i, i + BATCH_SIZE)
+    const { data, error } = await supabase.storage
+      .from('photosre')
+      .createSignedUrls(chunk, SIGNED_URL_EXPIRY)
+
+    if (error || !data) continue
+
     data
-      .filter((item) => item.signedUrl)
-      .map((item) => [item.path, item.signedUrl])
-  )
+      .filter((item) => item.signedUrl && item.path)
+      .forEach((item) => { result[item.path!] = item.signedUrl! })
+  }
+
+  return result
 }

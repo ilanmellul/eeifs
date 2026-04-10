@@ -32,7 +32,9 @@ export async function createPost(formData: FormData) {
   return { success: true, post }
 }
 
-export async function getPosts(campId: string) {
+const POSTS_PER_PAGE = 20
+
+export async function getPosts(campId: string, page = 0) {
   const supabase = await createClient()
 
   const { data, error } = await supabase
@@ -45,6 +47,7 @@ export async function getPosts(campId: string) {
     `)
     .eq('camp_id', campId)
     .order('created_at', { ascending: false })
+    .range(page * POSTS_PER_PAGE, (page + 1) * POSTS_PER_PAGE - 1)
 
   if (error || !data) return []
 
