@@ -32,6 +32,7 @@ export async function saveCampInfo(campId: string, formData: FormData) {
   const payload = {
     camp_id: campId,
     address:           (formData.get('address') as string) || null,
+    city:              (formData.get('city') as string) || null,
     phone:             (formData.get('phone') as string) || null,
     email:             (formData.get('email') as string) || null,
     director:          (formData.get('director') as string) || null,

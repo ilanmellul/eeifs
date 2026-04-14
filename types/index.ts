@@ -29,6 +29,7 @@ export interface CampInfo {
   id: string
   camp_id: string
   address: string | null
+  city: string | null
   phone: string | null
   email: string | null
   director: string | null

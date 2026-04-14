@@ -24,6 +24,7 @@ interface Field {
 
 const FIELDS: Field[] = [
   { key: 'address',           label: 'Adresse',                icon: <MapPin className="w-4 h-4" />,      placeholder: '12 rue des Pins, 75000 Paris' },
+  { key: 'city',              label: 'Ville',                  icon: <MapPin className="w-4 h-4" />,      placeholder: 'Paris' },
   { key: 'meeting_point',     label: 'Point de rendez-vous',   icon: <Navigation className="w-4 h-4" />,  placeholder: 'Devant l\'entrée principale…' },
   { key: 'director',          label: 'Directeur / Responsable',icon: <User className="w-4 h-4" />,        placeholder: 'Prénom Nom' },
   { key: 'phone',             label: 'Téléphone de contact',   icon: <Phone className="w-4 h-4" />,       placeholder: '06 00 00 00 00' },

@@ -10,7 +10,8 @@ import PostForm from './PostForm'
 import PhotoGallery from './PhotoGallery'
 import ProgrammeView from './ProgrammeView'
 import CampInfoTab from './CampInfoTab'
-import { LayoutList, PlusCircle, Images, CalendarDays, Loader2, FolderPlus, ChevronLeft, Trash2, FolderOpen, ImageOff, Info } from 'lucide-react'
+import WeatherTab from './WeatherTab'
+import { LayoutList, PlusCircle, Images, CalendarDays, Loader2, FolderPlus, ChevronLeft, Trash2, FolderOpen, ImageOff, Info, CloudSun } from 'lucide-react'
 
 interface CampFeedProps {
   posts: Post[]
@@ -21,7 +22,7 @@ interface CampFeedProps {
   campInfo: CampInfo | null
 }
 
-type Tab = 'wall' | 'photos' | 'programme' | 'infos' | 'publier'
+type Tab = 'wall' | 'photos' | 'programme' | 'infos' | 'meteo' | 'publier'
 
 const POSTS_PER_PAGE = 20
 
@@ -117,6 +118,7 @@ export default function CampFeed({ posts: initialPosts, campId, currentUserId, u
     { id: 'photos',    label: 'Photos',    icon: Images,       show: true,       badge: allPhotos.length },
     { id: 'programme', label: 'Programme', icon: CalendarDays, show: true,       badge: programmePosts.length },
     { id: 'infos',     label: 'Infos',     icon: Info,         show: true },
+    { id: 'meteo',     label: 'Météo',     icon: CloudSun,     show: true },
     { id: 'publier',   label: 'Publier',   icon: PlusCircle,   show: isAnimateur },
   ]
 
@@ -314,6 +316,11 @@ export default function CampFeed({ posts: initialPosts, campId, currentUserId, u
       {/* Infos du camp */}
       {tab === 'infos' && (
         <CampInfoTab campId={campId} info={campInfo} canEdit={isAnimateur} />
+      )}
+
+      {/* Météo */}
+      {tab === 'meteo' && (
+        <WeatherTab city={campInfo?.city ?? null} />
       )}
 
       {/* Publier */}
