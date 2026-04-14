@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { getPosts } from '@/lib/actions/posts'
+import { getAlbums } from '@/lib/actions/albums'
 import { notFound } from 'next/navigation'
 import CampFeed from '@/components/CampFeed'
 import { Calendar } from 'lucide-react'
@@ -20,10 +21,11 @@ export default async function CampPage({ params }: PageProps) {
   const { id } = await params
   const supabase = await createClient()
 
-  const [{ data: camp }, { data: { user } }, posts] = await Promise.all([
+  const [{ data: camp }, { data: { user } }, posts, albums] = await Promise.all([
     supabase.from('camps').select('*').eq('id', id).single(),
     supabase.auth.getUser(),
     getPosts(id),
+    getAlbums(id),
   ])
 
   if (!camp) notFound()
@@ -54,6 +56,7 @@ export default async function CampPage({ params }: PageProps) {
         campId={id}
         currentUserId={user?.id}
         userProfile={profile}
+        initialAlbums={albums}
       />
     </main>
   )

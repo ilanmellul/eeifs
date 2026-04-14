@@ -14,10 +14,11 @@ export async function createPost(formData: FormData) {
   const type = formData.get('type') as PostType
   const content = formData.get('content') as string
   const photoUrls = formData.getAll('photo_urls') as string[]
+  const album_id = (formData.get('album_id') as string) || null
 
   const { data: post, error } = await supabase
     .from('posts')
-    .insert({ camp_id, user_id: user.id, type, content })
+    .insert({ camp_id, user_id: user.id, type, content, album_id })
     .select()
     .single()
 
@@ -44,7 +45,8 @@ export async function getPosts(campId: string, page = 0) {
       profiles (id, name, role, avatar_url),
       photos (*),
       comments (*, profiles (id, name, role)),
-      reactions (*)
+      reactions (*),
+      albums (id, name)
     `)
     .eq('camp_id', campId)
     .order('created_at', { ascending: false })

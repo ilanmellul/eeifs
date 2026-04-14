@@ -8,6 +8,7 @@ import { Photo } from '@/types'
 interface GalleryPhoto extends Photo {
   authorName?: string
   postDate?: string
+  albumId?: string
 }
 
 interface PhotoGalleryProps {

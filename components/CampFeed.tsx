@@ -1,26 +1,29 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { Post, UserProfile } from '@/types'
+import Image from 'next/image'
+import { Post, UserProfile, Album } from '@/types'
 import { getPosts } from '@/lib/actions/posts'
+import { createAlbum, deleteAlbum } from '@/lib/actions/albums'
 import PostCard from './PostCard'
 import PostForm from './PostForm'
 import PhotoGallery from './PhotoGallery'
 import ProgrammeView from './ProgrammeView'
-import { LayoutList, PlusCircle, Images, CalendarDays, Loader2 } from 'lucide-react'
+import { LayoutList, PlusCircle, Images, CalendarDays, Loader2, FolderPlus, ChevronLeft, Trash2, FolderOpen, ImageOff } from 'lucide-react'
 
 interface CampFeedProps {
   posts: Post[]
   campId: string
   currentUserId?: string
   userProfile: UserProfile | null
+  initialAlbums: Album[]
 }
 
 type Tab = 'wall' | 'photos' | 'programme' | 'publier'
 
 const POSTS_PER_PAGE = 20
 
-export default function CampFeed({ posts: initialPosts, campId, currentUserId, userProfile }: CampFeedProps) {
+export default function CampFeed({ posts: initialPosts, campId, currentUserId, userProfile, initialAlbums }: CampFeedProps) {
   const isAnimateur = userProfile?.role === 'animateur' || userProfile?.role === 'admin'
   const [tab, setTab] = useState<Tab>('wall')
   const [allPosts, setAllPosts] = useState<Post[]>(initialPosts)
@@ -28,6 +31,15 @@ export default function CampFeed({ posts: initialPosts, campId, currentUserId, u
   const [hasMore, setHasMore] = useState(initialPosts.length === POSTS_PER_PAGE)
   const [loadingMore, startLoadMore] = useTransition()
   const [refreshing, startRefresh] = useTransition()
+
+  // Albums state
+  const [albums, setAlbums] = useState<Album[]>(initialAlbums)
+  const [selectedAlbumId, setSelectedAlbumId] = useState<string | null>(null) // null = grille, 'wall' = wall, string = album id
+  const [showCreateAlbum, setShowCreateAlbum] = useState(false)
+  const [newAlbumName, setNewAlbumName] = useState('')
+  const [albumError, setAlbumError] = useState<string | null>(null)
+  const [creatingAlbum, startCreatingAlbum] = useTransition()
+  const [deletingAlbumId, setDeletingAlbumId] = useState<string | null>(null)
 
   function loadMore() {
     startLoadMore(async () => {
@@ -49,14 +61,52 @@ export default function CampFeed({ posts: initialPosts, campId, currentUserId, u
     })
   }
 
-  // Extraire toutes les photos avec métadonnées auteur
+  function handleCreateAlbum() {
+    const name = newAlbumName.trim()
+    if (!name) { setAlbumError('Entrez un nom d\'album'); return }
+    setAlbumError(null)
+    startCreatingAlbum(async () => {
+      const fd = new FormData()
+      fd.set('camp_id', campId)
+      fd.set('name', name)
+      const result = await createAlbum(fd)
+      if (result?.error) {
+        setAlbumError(result.error)
+      } else if (result.album) {
+        setAlbums((prev) => [...prev, result.album as Album])
+        setNewAlbumName('')
+        setShowCreateAlbum(false)
+      }
+    })
+  }
+
+  function handleDeleteAlbum(albumId: string) {
+    setDeletingAlbumId(albumId)
+    deleteAlbum(albumId, campId).then((result) => {
+      if (!result?.error) {
+        setAlbums((prev) => prev.filter((a) => a.id !== albumId))
+        if (selectedAlbumId === albumId) setSelectedAlbumId(null)
+      }
+      setDeletingAlbumId(null)
+    })
+  }
+
+  // Extraire toutes les photos avec métadonnées
   const allPhotos = allPosts.flatMap((post) =>
     (post.photos ?? []).map((photo) => ({
       ...photo,
       authorName: post.profiles?.name,
       postDate: post.created_at,
+      albumId: post.album_id ?? undefined,
     }))
   )
+
+  // Photos filtrées selon l'album sélectionné
+  const photosForSelectedAlbum = selectedAlbumId === 'wall'
+    ? allPhotos.filter((p) => !p.albumId)
+    : selectedAlbumId
+      ? allPhotos.filter((p) => p.albumId === selectedAlbumId)
+      : allPhotos
 
   const programmePosts = allPosts.filter((p) => p.type === 'programme')
 
@@ -67,6 +117,19 @@ export default function CampFeed({ posts: initialPosts, campId, currentUserId, u
     { id: 'publier',   label: 'Publier',   icon: PlusCircle,   show: isAnimateur },
   ]
 
+  // Couverture d'album = première photo de l'album
+  function getCoverPhoto(albumId: string | 'wall') {
+    const photos = albumId === 'wall'
+      ? allPhotos.filter((p) => !p.albumId)
+      : allPhotos.filter((p) => p.albumId === albumId)
+    return photos[0]?.url ?? null
+  }
+
+  const wallPhotoCount = allPhotos.filter((p) => !p.albumId).length
+  const selectedAlbum = selectedAlbumId && selectedAlbumId !== 'wall'
+    ? albums.find((a) => a.id === selectedAlbumId)
+    : null
+
   return (
     <div>
       {/* Tabs */}
@@ -74,7 +137,7 @@ export default function CampFeed({ posts: initialPosts, campId, currentUserId, u
         {tabs.filter((t) => t.show).map(({ id, label, icon: Icon, badge }) => (
           <button
             key={id}
-            onClick={() => setTab(id)}
+            onClick={() => { setTab(id); if (id !== 'photos') setSelectedAlbumId(null) }}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
               tab === id
                 ? 'bg-gradient-to-r from-orange-400 to-rose-500 text-white shadow-sm shadow-orange-200'
@@ -129,9 +192,115 @@ export default function CampFeed({ posts: initialPosts, campId, currentUserId, u
         )
       )}
 
-      {/* Photos */}
+      {/* Photos — grille d'albums ou vue album */}
       {tab === 'photos' && (
-        <PhotoGallery photos={allPhotos} />
+        selectedAlbumId !== null ? (
+          // Vue album sélectionné
+          <div>
+            <div className="flex items-center gap-3 mb-5">
+              <button
+                onClick={() => setSelectedAlbumId(null)}
+                className="flex items-center gap-1.5 text-sm font-semibold text-orange-500 hover:text-orange-600 transition-colors"
+              >
+                <ChevronLeft className="w-4 h-4" /> Retour aux albums
+              </button>
+              <span className="text-gray-300">·</span>
+              <span className="font-bold text-gray-800">
+                {selectedAlbumId === 'wall' ? 'Wall' : selectedAlbum?.name}
+              </span>
+              {selectedAlbum && isAnimateur && (
+                <button
+                  onClick={() => handleDeleteAlbum(selectedAlbum.id)}
+                  disabled={deletingAlbumId === selectedAlbum.id}
+                  aria-label="Supprimer l'album"
+                  className="ml-auto flex items-center gap-1.5 text-xs text-red-400 hover:text-red-600 px-2.5 py-1.5 rounded-xl hover:bg-red-50 transition-colors disabled:opacity-50"
+                >
+                  {deletingAlbumId === selectedAlbum.id
+                    ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    : <Trash2 className="w-3.5 h-3.5" />
+                  }
+                  Supprimer l&apos;album
+                </button>
+              )}
+            </div>
+            <PhotoGallery photos={photosForSelectedAlbum} />
+          </div>
+        ) : (
+          // Grille d'albums
+          <div>
+            {isAnimateur && (
+              <div className="mb-5">
+                {showCreateAlbum ? (
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={newAlbumName}
+                      onChange={(e) => setNewAlbumName(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') handleCreateAlbum(); if (e.key === 'Escape') setShowCreateAlbum(false) }}
+                      placeholder="Nom de l'album…"
+                      autoFocus
+                      className="flex-1 px-3 py-2 rounded-xl border border-orange-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-300 bg-white"
+                    />
+                    <button
+                      onClick={handleCreateAlbum}
+                      disabled={creatingAlbum}
+                      className="px-4 py-2 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-orange-400 to-rose-500 hover:opacity-90 disabled:opacity-60 transition-opacity"
+                    >
+                      {creatingAlbum ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Créer'}
+                    </button>
+                    <button
+                      onClick={() => { setShowCreateAlbum(false); setNewAlbumName(''); setAlbumError(null) }}
+                      className="px-3 py-2 rounded-xl text-sm text-gray-500 hover:bg-gray-100 transition-colors"
+                    >
+                      Annuler
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setShowCreateAlbum(true)}
+                    className="flex items-center gap-2 text-sm font-semibold text-orange-500 hover:text-orange-600 transition-colors"
+                  >
+                    <FolderPlus className="w-4 h-4" /> Nouvel album
+                  </button>
+                )}
+                {albumError && <p className="text-xs text-red-500 mt-1">{albumError}</p>}
+              </div>
+            )}
+
+            {allPhotos.length === 0 ? (
+              <div className="text-center py-20 bg-white rounded-3xl border border-orange-50">
+                <div className="inline-flex items-center justify-center w-16 h-16 bg-orange-50 rounded-2xl mb-4">
+                  <ImageOff className="w-8 h-8 text-orange-300" />
+                </div>
+                <p className="font-semibold text-gray-600">Aucune photo pour l&apos;instant</p>
+                <p className="text-sm text-gray-400 mt-1">Les photos publiées apparaîtront ici.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {/* Album Wall */}
+                <AlbumCard
+                  name="Wall"
+                  photoCount={wallPhotoCount}
+                  coverUrl={getCoverPhoto('wall')}
+                  onClick={() => setSelectedAlbumId('wall')}
+                />
+                {/* Albums créés */}
+                {albums.map((album) => {
+                  const count = allPhotos.filter((p) => p.albumId === album.id).length
+                  return (
+                    <AlbumCard
+                      key={album.id}
+                      name={album.name}
+                      photoCount={count}
+                      coverUrl={getCoverPhoto(album.id)}
+                      onClick={() => setSelectedAlbumId(album.id)}
+                    />
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )
       )}
 
       {/* Programme */}
@@ -141,8 +310,41 @@ export default function CampFeed({ posts: initialPosts, campId, currentUserId, u
 
       {/* Publier */}
       {tab === 'publier' && isAnimateur && (
-        <PostForm campId={campId} onSuccess={refreshAndGoToWall} />
+        <PostForm campId={campId} albums={albums} onSuccess={refreshAndGoToWall} />
       )}
     </div>
+  )
+}
+
+function AlbumCard({
+  name,
+  photoCount,
+  coverUrl,
+  onClick,
+}: {
+  name: string
+  photoCount: number
+  coverUrl: string | null
+  onClick: () => void
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="group relative aspect-square rounded-2xl overflow-hidden bg-orange-50 border border-orange-100 hover:border-orange-300 transition-all hover:shadow-md hover:shadow-orange-100"
+    >
+      {coverUrl ? (
+        <Image src={coverUrl} alt="" fill className="object-cover transition-transform duration-300 group-hover:scale-105" sizes="(max-width: 640px) 50vw, 33vw" />
+      ) : (
+        <div className="w-full h-full flex items-center justify-center">
+          <FolderOpen className="w-10 h-10 text-orange-200" />
+        </div>
+      )}
+      {/* Overlay */}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
+      <div className="absolute bottom-0 left-0 right-0 p-3 text-left">
+        <p className="text-white font-bold text-sm leading-tight truncate">{name}</p>
+        <p className="text-white/70 text-xs">{photoCount} photo{photoCount !== 1 ? 's' : ''}</p>
+      </div>
+    </button>
   )
 }

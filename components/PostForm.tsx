@@ -4,11 +4,12 @@ import { useState, useTransition, useRef, useCallback } from 'react'
 import { createPost } from '@/lib/actions/posts'
 import { uploadPhoto } from '@/lib/actions/upload'
 import { Button } from './ui/Button'
-import { PostType } from '@/types'
-import { Camera, Info, CalendarDays, X, ImagePlus } from 'lucide-react'
+import { PostType, Album } from '@/types'
+import { Camera, Info, CalendarDays, X, ImagePlus, FolderOpen } from 'lucide-react'
 
 interface PostFormProps {
   campId: string
+  albums: Album[]
   onSuccess?: () => void
 }
 
@@ -54,8 +55,9 @@ const POST_TYPES: { value: PostType; label: string; icon: React.ReactNode }[] = 
   { value: 'programme', label: 'Programme', icon: <CalendarDays className="w-4 h-4" /> },
 ]
 
-export default function PostForm({ campId, onSuccess }: PostFormProps) {
+export default function PostForm({ campId, albums, onSuccess }: PostFormProps) {
   const [type, setType] = useState<PostType>('info')
+  const [selectedAlbumId, setSelectedAlbumId] = useState<string>('')
 
   function changeType(newType: PostType) {
     setType(newType)
@@ -120,6 +122,7 @@ export default function PostForm({ campId, onSuccess }: PostFormProps) {
     const formData = new FormData(e.currentTarget)
     formData.set('camp_id', campId)
     formData.set('type', type)
+    if (selectedAlbumId) formData.set('album_id', selectedAlbumId)
 
     startTransition(async () => {
       // Upload photos first
@@ -180,6 +183,23 @@ export default function PostForm({ campId, onSuccess }: PostFormProps) {
         rows={3}
         className="w-full px-4 py-3 rounded-xl border border-orange-100 focus:outline-none focus:ring-2 focus:ring-orange-300 focus:border-transparent text-sm resize-none placeholder:text-gray-300 bg-orange-50/40"
       />
+
+      {/* Sélecteur d'album — uniquement si type photo */}
+      {type === 'photo' && albums.length > 0 && (
+        <div className="flex items-center gap-2">
+          <FolderOpen className="w-4 h-4 text-orange-400 shrink-0" />
+          <select
+            value={selectedAlbumId}
+            onChange={(e) => setSelectedAlbumId(e.target.value)}
+            className="flex-1 px-3 py-2 rounded-xl border border-orange-100 bg-orange-50/40 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-300"
+          >
+            <option value="">Wall (par défaut)</option>
+            {albums.map((album) => (
+              <option key={album.id} value={album.id}>{album.name}</option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {/* Photo upload — uniquement si type photo */}
       {type === 'photo' && <div>

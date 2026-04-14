@@ -17,6 +17,14 @@ export interface Camp {
   created_at: string
 }
 
+export interface Album {
+  id: string
+  camp_id: string
+  user_id: string
+  name: string
+  created_at: string
+}
+
 export interface Photo {
   id: string
   post_id: string
@@ -50,8 +58,10 @@ export interface Post {
   type: PostType
   content: string | null
   created_at: string
+  album_id: string | null
   profiles?: UserProfile
   photos?: Photo[]
   comments?: Comment[]
   reactions?: Reaction[]
+  albums?: Album
 }

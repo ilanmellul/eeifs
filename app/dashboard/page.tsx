@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { getCamps, createCamp } from '@/lib/actions/posts'
+import { getAlbums } from '@/lib/actions/albums'
 import { redirect } from 'next/navigation'
 import PostForm from '@/components/PostForm'
 import CampCard from '@/components/CampCard'
@@ -32,6 +33,8 @@ export default async function DashboardPage() {
     getCamps(),
     supabase.from('profiles').select('*').order('created_at', { ascending: false }),
   ])
+
+  const firstCampAlbums = camps.length > 0 ? await getAlbums(camps[0].id) : []
 
   const parents    = users?.filter((u) => u.role === 'parent') ?? []
   const animateurs = users?.filter((u) => u.role === 'animateur') ?? []
@@ -98,7 +101,7 @@ export default async function DashboardPage() {
               <p className="text-sm text-orange-400">Créez d&apos;abord un camp pour pouvoir publier.</p>
             </div>
           ) : (
-            <PostForm campId={camps[0].id} />
+            <PostForm campId={camps[0].id} albums={firstCampAlbums} />
           )}
         </div>
       </div>
