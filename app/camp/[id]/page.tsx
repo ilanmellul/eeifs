@@ -4,18 +4,9 @@ import { getAlbums } from '@/lib/actions/albums'
 import { getCampInfo } from '@/lib/actions/camp-info'
 import { notFound } from 'next/navigation'
 import CampFeed from '@/components/CampFeed'
-import { Calendar } from 'lucide-react'
 
 interface PageProps {
   params: Promise<{ id: string }>
-}
-
-function formatDate(dateStr: string) {
-  return new Date(dateStr).toLocaleDateString('fr-FR', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  })
 }
 
 export default async function CampPage({ params }: PageProps) {
@@ -43,17 +34,9 @@ export default async function CampPage({ params }: PageProps) {
   }
 
   return (
-    <main className="max-w-xl mx-auto px-4 py-6">
-      {/* Camp header */}
-      <div className="mb-6 pb-6 border-b border-gray-100">
-        <h1 className="text-xl font-bold text-gray-900">{camp.name}</h1>
-        <div className="flex items-center gap-1.5 mt-1.5 text-sm text-gray-400">
-          <Calendar className="w-3.5 h-3.5" />
-          <span>{formatDate(camp.date_start)} → {formatDate(camp.date_end)}</span>
-        </div>
-      </div>
-
+    <main className="max-w-6xl mx-auto px-4 py-6">
       <CampFeed
+        camp={camp}
         posts={posts}
         campId={id}
         currentUserId={user?.id}
