@@ -25,6 +25,22 @@ export interface Album {
   created_at: string
 }
 
+export interface CampInfo {
+  id: string
+  camp_id: string
+  address: string | null
+  phone: string | null
+  email: string | null
+  director: string | null
+  arrival_time: string | null
+  departure_time: string | null
+  meeting_point: string | null
+  what_to_bring: string | null
+  emergency_contact: string | null
+  extra_info: string | null
+  updated_at: string
+}
+
 export interface Photo {
   id: string
   post_id: string

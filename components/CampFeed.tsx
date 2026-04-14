@@ -2,14 +2,15 @@
 
 import { useState, useTransition } from 'react'
 import Image from 'next/image'
-import { Post, UserProfile, Album } from '@/types'
+import { Post, UserProfile, Album, CampInfo } from '@/types'
 import { getPosts } from '@/lib/actions/posts'
 import { createAlbum, deleteAlbum } from '@/lib/actions/albums'
 import PostCard from './PostCard'
 import PostForm from './PostForm'
 import PhotoGallery from './PhotoGallery'
 import ProgrammeView from './ProgrammeView'
-import { LayoutList, PlusCircle, Images, CalendarDays, Loader2, FolderPlus, ChevronLeft, Trash2, FolderOpen, ImageOff } from 'lucide-react'
+import CampInfoTab from './CampInfoTab'
+import { LayoutList, PlusCircle, Images, CalendarDays, Loader2, FolderPlus, ChevronLeft, Trash2, FolderOpen, ImageOff, Info } from 'lucide-react'
 
 interface CampFeedProps {
   posts: Post[]
@@ -17,13 +18,14 @@ interface CampFeedProps {
   currentUserId?: string
   userProfile: UserProfile | null
   initialAlbums: Album[]
+  campInfo: CampInfo | null
 }
 
-type Tab = 'wall' | 'photos' | 'programme' | 'publier'
+type Tab = 'wall' | 'photos' | 'programme' | 'infos' | 'publier'
 
 const POSTS_PER_PAGE = 20
 
-export default function CampFeed({ posts: initialPosts, campId, currentUserId, userProfile, initialAlbums }: CampFeedProps) {
+export default function CampFeed({ posts: initialPosts, campId, currentUserId, userProfile, initialAlbums, campInfo }: CampFeedProps) {
   const isAnimateur = userProfile?.role === 'animateur' || userProfile?.role === 'admin'
   const [tab, setTab] = useState<Tab>('wall')
   const [allPosts, setAllPosts] = useState<Post[]>(initialPosts)
@@ -114,6 +116,7 @@ export default function CampFeed({ posts: initialPosts, campId, currentUserId, u
     { id: 'wall',      label: 'Wall',      icon: LayoutList,   show: true },
     { id: 'photos',    label: 'Photos',    icon: Images,       show: true,       badge: allPhotos.length },
     { id: 'programme', label: 'Programme', icon: CalendarDays, show: true,       badge: programmePosts.length },
+    { id: 'infos',     label: 'Infos',     icon: Info,         show: true },
     { id: 'publier',   label: 'Publier',   icon: PlusCircle,   show: isAnimateur },
   ]
 
@@ -306,6 +309,11 @@ export default function CampFeed({ posts: initialPosts, campId, currentUserId, u
       {/* Programme */}
       {tab === 'programme' && (
         <ProgrammeView posts={allPosts} />
+      )}
+
+      {/* Infos du camp */}
+      {tab === 'infos' && (
+        <CampInfoTab campId={campId} info={campInfo} canEdit={isAnimateur} />
       )}
 
       {/* Publier */}
