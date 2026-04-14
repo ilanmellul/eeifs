@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import Image from 'next/image'
 import { Post } from '@/types'
-import { Info, CalendarDays, Camera, Pencil, X, Check } from 'lucide-react'
+import { Info, CalendarDays, Camera, Pencil, X, Check, FolderOpen } from 'lucide-react'
 import CommentSection from './CommentSection'
 import { updatePost } from '@/lib/actions/posts'
 import { toggleReaction } from '@/lib/actions/reactions'
@@ -170,6 +170,11 @@ export default function PostCard({ post, campId, currentUserId }: PostCardProps)
         {post.type === 'photo' && (
           <span className="flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-violet-100 text-violet-600">
             <Camera className="w-3 h-3" /> Photo
+          </span>
+        )}
+        {post.type === 'photo' && post.albums?.name && (
+          <span className="flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-violet-50 text-violet-500 border border-violet-100">
+            <FolderOpen className="w-3 h-3" /> {post.albums.name}
           </span>
         )}
         {post.type === 'info' && (
