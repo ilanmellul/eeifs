@@ -14,6 +14,8 @@ interface PhotoGalleryProps {
   photos: GalleryPhoto[]
 }
 
+const PAGE_SIZE = 24
+
 function toDateKey(dateStr?: string) {
   if (!dateStr) return ''
   return new Date(dateStr).toISOString().slice(0, 10)
@@ -52,7 +54,6 @@ function getDaysInMonth(year: number, month: number) {
 }
 
 function getFirstDayOfMonth(year: number, month: number) {
-  // 0=Sun…6=Sat → convert to Mon-based (0=Mon…6=Sun)
   const day = new Date(year, month, 1).getDay()
   return (day + 6) % 7
 }
@@ -105,7 +106,6 @@ function Calendar({
       className="absolute top-12 left-0 z-30 bg-white rounded-2xl shadow-xl border border-orange-100 p-4 w-72"
       onClick={(e) => e.stopPropagation()}
     >
-      {/* Header */}
       <div className="flex items-center justify-between mb-3">
         <button onClick={prevMonth} className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-orange-50 text-gray-500 transition-colors">
           <ChevronLeft className="w-4 h-4" />
@@ -118,14 +118,12 @@ function Calendar({
         </button>
       </div>
 
-      {/* Weekdays */}
       <div className="grid grid-cols-7 mb-1">
         {WEEKDAYS.map((d) => (
           <div key={d} className="text-center text-xs font-semibold text-gray-400 py-1">{d}</div>
         ))}
       </div>
 
-      {/* Days */}
       <div className="grid grid-cols-7 gap-y-1">
         {cells.map((day, i) => {
           if (!day) return <div key={`empty-${i}`} />
@@ -156,7 +154,6 @@ function Calendar({
         })}
       </div>
 
-      {/* Légende */}
       <div className="flex items-center gap-3 mt-3 pt-3 border-t border-gray-50 text-xs text-gray-400">
         <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-400 inline-block" /> Photos disponibles</span>
         {selectedDate && (
@@ -169,10 +166,55 @@ function Calendar({
   )
 }
 
+// Miniature lazy : ne charge l'image que quand elle devient visible à l'écran
+function LazyThumbnail({
+  photo,
+  index,
+  isActive,
+  onClick,
+}: {
+  photo: GalleryPhoto
+  index: number
+  isActive: boolean
+  onClick: () => void
+}) {
+  const ref = useRef<HTMLButtonElement>(null)
+  const [isVisible, setIsVisible] = useState(false)
+
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const observer = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) setIsVisible(true) },
+      { threshold: 0, rootMargin: '0px 200px 0px 200px' },
+    )
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
+
+  return (
+    <button
+      ref={ref}
+      onClick={onClick}
+      aria-label={`Photo ${index + 1}`}
+      className={`relative w-12 h-12 shrink-0 rounded-lg overflow-hidden transition-all ${
+        isActive ? 'ring-2 ring-white opacity-100' : 'opacity-50 hover:opacity-80'
+      }`}
+    >
+      {isVisible ? (
+        <Image src={photo.url} alt="" fill className="object-cover" sizes="48px" />
+      ) : (
+        <div className="w-full h-full bg-white/10" />
+      )}
+    </button>
+  )
+}
+
 export default function PhotoGallery({ photos }: PhotoGalleryProps) {
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [calendarOpen, setCalendarOpen] = useState(false)
   const [lightbox, setLightbox] = useState<number | null>(null)
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
 
   const photoDates = useMemo(() => new Set(photos.map((p) => toDateKey(p.postDate)).filter(Boolean)), [photos])
 
@@ -180,6 +222,31 @@ export default function PhotoGallery({ photos }: PhotoGalleryProps) {
     if (!selectedDate) return photos
     return photos.filter((p) => toDateKey(p.postDate) === selectedDate)
   }, [photos, selectedDate])
+
+  // Reset pagination quand le filtre de date change
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE)
+  }, [selectedDate])
+
+  // Keyboard navigation dans le lightbox
+  useEffect(() => {
+    if (lightbox === null) return
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'ArrowLeft') prevPhoto()
+      else if (e.key === 'ArrowRight') nextPhoto()
+      else if (e.key === 'Escape') closeLightbox()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  })
+
+  // Scroll la miniature active dans la bande du lightbox
+  useEffect(() => {
+    if (lightbox === null) return
+    const strip = document.getElementById('lightbox-strip')
+    const thumb = strip?.children[lightbox] as HTMLElement | undefined
+    thumb?.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' })
+  }, [lightbox])
 
   const openLightbox = (i: number) => setLightbox(i)
   const closeLightbox = () => setLightbox(null)
@@ -199,6 +266,7 @@ export default function PhotoGallery({ photos }: PhotoGalleryProps) {
   }
 
   const current = lightbox !== null ? filtered[lightbox] : null
+  const visiblePhotos = filtered.slice(0, visibleCount)
 
   return (
     <>
@@ -246,24 +314,37 @@ export default function PhotoGallery({ photos }: PhotoGalleryProps) {
           <p className="text-gray-400">Aucune photo ce jour-là</p>
         </div>
       ) : (
-        <div className="grid grid-cols-3 gap-1 sm:gap-1.5">
-          {filtered.map((photo, i) => (
-            <button
-              key={photo.id}
-              onClick={() => openLightbox(i)}
-              className="relative aspect-square overflow-hidden rounded-xl bg-orange-50 group"
-            >
-              <Image
-                src={photo.url}
-                alt=""
-                fill
-                className="object-cover transition-transform duration-300 group-hover:scale-105"
-                sizes="(max-width: 640px) 33vw, 200px"
-              />
-              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
-            </button>
-          ))}
-        </div>
+        <>
+          <div className="grid grid-cols-3 gap-1 sm:gap-1.5">
+            {visiblePhotos.map((photo, i) => (
+              <button
+                key={photo.id}
+                onClick={() => openLightbox(i)}
+                className="relative aspect-square overflow-hidden rounded-xl bg-orange-50 group"
+              >
+                <Image
+                  src={photo.url}
+                  alt=""
+                  fill
+                  className="object-cover transition-transform duration-300 group-hover:scale-105"
+                  sizes="(max-width: 640px) 33vw, 200px"
+                />
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
+              </button>
+            ))}
+          </div>
+
+          {visibleCount < filtered.length && (
+            <div className="mt-6 flex justify-center">
+              <button
+                onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
+                className="px-6 py-2.5 rounded-xl text-sm font-semibold bg-white border border-orange-100 text-orange-500 hover:bg-orange-50 transition-all"
+              >
+                Charger plus ({filtered.length - visibleCount} restante{filtered.length - visibleCount > 1 ? 's' : ''})
+              </button>
+            </div>
+          )}
+        </>
       )}
 
       {/* Lightbox */}
@@ -278,12 +359,18 @@ export default function PhotoGallery({ photos }: PhotoGalleryProps) {
               </p>
             </div>
             <div className="flex items-center gap-2">
-              <button onClick={() => downloadPhoto(current.url, lightbox)}
-                className="w-10 h-10 flex items-center justify-center rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors">
+              <button
+                onClick={() => downloadPhoto(current.url, lightbox)}
+                aria-label="Télécharger"
+                className="w-10 h-10 flex items-center justify-center rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors"
+              >
                 <Download className="w-5 h-5" />
               </button>
-              <button onClick={closeLightbox}
-                className="w-10 h-10 flex items-center justify-center rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors">
+              <button
+                onClick={closeLightbox}
+                aria-label="Fermer"
+                className="w-10 h-10 flex items-center justify-center rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors"
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -291,7 +378,7 @@ export default function PhotoGallery({ photos }: PhotoGalleryProps) {
 
           <div className="flex-1 relative flex items-center justify-center px-12" onClick={(e) => e.stopPropagation()}>
             {filtered.length > 1 && (
-              <button onClick={prevPhoto} className="absolute left-2 w-10 h-10 flex items-center justify-center rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors z-10">
+              <button onClick={prevPhoto} aria-label="Photo précédente" className="absolute left-2 w-10 h-10 flex items-center justify-center rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors z-10">
                 <ChevronLeft className="w-6 h-6" />
               </button>
             )}
@@ -299,19 +386,26 @@ export default function PhotoGallery({ photos }: PhotoGalleryProps) {
               <Image src={current.url} alt="" fill className="object-contain" sizes="100vw" priority />
             </div>
             {filtered.length > 1 && (
-              <button onClick={nextPhoto} className="absolute right-2 w-10 h-10 flex items-center justify-center rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors z-10">
+              <button onClick={nextPhoto} aria-label="Photo suivante" className="absolute right-2 w-10 h-10 flex items-center justify-center rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors z-10">
                 <ChevronRight className="w-6 h-6" />
               </button>
             )}
           </div>
 
           {filtered.length > 1 && (
-            <div className="flex gap-1.5 px-4 py-3 overflow-x-auto shrink-0 justify-center" onClick={(e) => e.stopPropagation()}>
+            <div
+              id="lightbox-strip"
+              className="flex gap-1.5 px-4 py-3 overflow-x-auto shrink-0 justify-center"
+              onClick={(e) => e.stopPropagation()}
+            >
               {filtered.map((p, i) => (
-                <button key={p.id} onClick={() => setLightbox(i)}
-                  className={`relative w-12 h-12 shrink-0 rounded-lg overflow-hidden transition-all ${i === lightbox ? 'ring-2 ring-white opacity-100' : 'opacity-50 hover:opacity-80'}`}>
-                  <Image src={p.url} alt="" fill className="object-cover" sizes="48px" />
-                </button>
+                <LazyThumbnail
+                  key={p.id}
+                  photo={p}
+                  index={i}
+                  isActive={i === lightbox}
+                  onClick={() => setLightbox(i)}
+                />
               ))}
             </div>
           )}

@@ -33,6 +33,16 @@ export interface Comment {
   profiles?: UserProfile
 }
 
+export type ReactionEmoji = '❤️' | '😂' | '🔥' | '👏'
+
+export interface Reaction {
+  id: string
+  post_id: string
+  user_id: string
+  emoji: ReactionEmoji
+  created_at: string
+}
+
 export interface Post {
   id: string
   camp_id: string
@@ -43,4 +53,5 @@ export interface Post {
   profiles?: UserProfile
   photos?: Photo[]
   comments?: Comment[]
+  reactions?: Reaction[]
 }

@@ -1,7 +1,13 @@
+'use client'
+
+import { useState, useTransition } from 'react'
 import Image from 'next/image'
 import { Post } from '@/types'
-import { Info, CalendarDays, Camera } from 'lucide-react'
+import { Info, CalendarDays, Camera, Pencil, X, Check } from 'lucide-react'
 import CommentSection from './CommentSection'
+import { updatePost } from '@/lib/actions/posts'
+import { toggleReaction } from '@/lib/actions/reactions'
+import { Reaction, ReactionEmoji } from '@/types'
 
 interface PostCardProps {
   post: Post
@@ -19,7 +25,76 @@ function timeAgo(dateStr: string) {
   return `Il y a ${Math.floor(hours / 24)}j`
 }
 
-// Couleur avatar basée sur la première lettre — inline style évite les classes dynamiques
+const EMOJIS: ReactionEmoji[] = ['❤️', '😂', '🔥', '👏']
+
+function ReactionBar({
+  reactions,
+  postId,
+  campId,
+  currentUserId,
+}: {
+  reactions: Reaction[]
+  postId: string
+  campId: string
+  currentUserId?: string
+}) {
+  // Optimistic local state
+  const [localReactions, setLocalReactions] = useState<Reaction[]>(reactions)
+  const [pending, startPending] = useTransition()
+
+  function countFor(emoji: ReactionEmoji) {
+    return localReactions.filter((r) => r.emoji === emoji).length
+  }
+  function hasReacted(emoji: ReactionEmoji) {
+    return currentUserId ? localReactions.some((r) => r.emoji === emoji && r.user_id === currentUserId) : false
+  }
+
+  function handleClick(emoji: ReactionEmoji) {
+    if (!currentUserId) return
+    // Optimistic update
+    const already = hasReacted(emoji)
+    setLocalReactions((prev) =>
+      already
+        ? prev.filter((r) => !(r.emoji === emoji && r.user_id === currentUserId))
+        : [...prev, { id: 'optimistic', post_id: postId, user_id: currentUserId, emoji, created_at: new Date().toISOString() }]
+    )
+    startPending(async () => {
+      await toggleReaction(postId, emoji, campId)
+    })
+  }
+
+  const hasAny = EMOJIS.some((e) => countFor(e) > 0)
+  if (!hasAny && !currentUserId) return null
+
+  return (
+    <div className="flex items-center gap-1.5 px-4 py-2">
+      {EMOJIS.map((emoji) => {
+        const count = countFor(emoji)
+        const reacted = hasReacted(emoji)
+        if (count === 0 && !currentUserId) return null
+        return (
+          <button
+            key={emoji}
+            onClick={() => handleClick(emoji)}
+            disabled={pending || !currentUserId}
+            aria-label={`Réagir ${emoji}`}
+            className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold transition-all ${
+              reacted
+                ? 'bg-orange-100 text-orange-600 ring-1 ring-orange-300'
+                : count > 0
+                  ? 'bg-gray-100 text-gray-600 hover:bg-orange-50'
+                  : 'bg-gray-50 text-gray-400 hover:bg-orange-50 hover:text-orange-500'
+            }`}
+          >
+            <span>{emoji}</span>
+            {count > 0 && <span>{count}</span>}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 function getAvatarColor(name: string): string {
   const hue = (name.charCodeAt(0) * 47 + 30) % 360
   return `hsl(${hue}, 65%, 55%)`
@@ -31,6 +106,34 @@ export default function PostCard({ post, campId, currentUserId }: PostCardProps)
   const authorInitial = authorName[0]?.toUpperCase() ?? '?'
   const isAnimateur = post.profiles?.role === 'animateur' || post.profiles?.role === 'admin'
   const avatarColor = getAvatarColor(authorName)
+  const canEdit = currentUserId === post.user_id && !hasPhotos
+
+  const [isEditing, setIsEditing] = useState(false)
+  const [editContent, setEditContent] = useState(post.content ?? '')
+  const [displayContent, setDisplayContent] = useState(post.content ?? '')
+  const [editError, setEditError] = useState<string | null>(null)
+  const [isPending, startTransition] = useTransition()
+
+  function cancelEdit() {
+    setEditContent(displayContent)
+    setEditError(null)
+    setIsEditing(false)
+  }
+
+  function saveEdit() {
+    const trimmed = editContent.trim()
+    if (!trimmed) { setEditError('Le contenu ne peut pas être vide'); return }
+    setEditError(null)
+    startTransition(async () => {
+      const result = await updatePost(post.id, trimmed)
+      if (result?.error) {
+        setEditError(result.error)
+      } else {
+        setDisplayContent(trimmed)
+        setIsEditing(false)
+      }
+    })
+  }
 
   return (
     <article className="bg-white border border-orange-50 rounded-3xl overflow-hidden shadow-sm shadow-orange-100">
@@ -53,6 +156,16 @@ export default function PostCard({ post, campId, currentUserId }: PostCardProps)
           </div>
           <p className="text-xs text-gray-400">{timeAgo(post.created_at)}</p>
         </div>
+
+        {canEdit && !isEditing && (
+          <button
+            onClick={() => setIsEditing(true)}
+            aria-label="Modifier le post"
+            className="w-8 h-8 flex items-center justify-center rounded-xl text-gray-400 hover:text-orange-500 hover:bg-orange-50 transition-colors"
+          >
+            <Pencil className="w-4 h-4" />
+          </button>
+        )}
 
         {post.type === 'photo' && (
           <span className="flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-violet-100 text-violet-600">
@@ -89,14 +202,52 @@ export default function PostCard({ post, campId, currentUserId }: PostCardProps)
       )}
 
       {/* Content */}
-      {post.content && (
-        <div className="px-4 pt-3 pb-1">
-          <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">
-            <span className="font-semibold mr-1">{authorName}</span>
-            {post.content}
-          </p>
+      {isEditing ? (
+        <div className="px-4 pt-3 pb-3 space-y-2">
+          <textarea
+            value={editContent}
+            onChange={(e) => setEditContent(e.target.value)}
+            rows={3}
+            autoFocus
+            className="w-full px-3 py-2 rounded-xl border border-orange-200 focus:outline-none focus:ring-2 focus:ring-orange-300 text-sm resize-none bg-orange-50/40"
+          />
+          {editError && (
+            <p className="text-xs text-red-500">{editError}</p>
+          )}
+          <div className="flex gap-2 justify-end">
+            <button
+              onClick={cancelEdit}
+              disabled={isPending}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-gray-500 bg-gray-100 hover:bg-gray-200 transition-colors"
+            >
+              <X className="w-3 h-3" /> Annuler
+            </button>
+            <button
+              onClick={saveEdit}
+              disabled={isPending}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-white bg-gradient-to-r from-orange-400 to-rose-500 hover:opacity-90 transition-opacity disabled:opacity-60"
+            >
+              <Check className="w-3 h-3" /> {isPending ? 'Enregistrement…' : 'Enregistrer'}
+            </button>
+          </div>
         </div>
+      ) : (
+        displayContent && (
+          <div className="px-4 pt-3 pb-1">
+            <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">
+              <span className="font-semibold mr-1">{authorName}</span>
+              {displayContent}
+            </p>
+          </div>
+        )
       )}
+
+      <ReactionBar
+        reactions={post.reactions ?? []}
+        postId={post.id}
+        campId={campId}
+        currentUserId={currentUserId}
+      />
 
       <CommentSection
         postId={post.id}

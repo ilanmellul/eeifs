@@ -43,7 +43,8 @@ export async function getPosts(campId: string, page = 0) {
       *,
       profiles (id, name, role, avatar_url),
       photos (*),
-      comments (*, profiles (id, name, role))
+      comments (*, profiles (id, name, role)),
+      reactions (*)
     `)
     .eq('camp_id', campId)
     .order('created_at', { ascending: false })
@@ -78,11 +79,31 @@ export async function deletePost(postId: string) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Non authentifié' }
 
-  const { data: post } = await supabase.from('posts').select('camp_id').eq('id', postId).single()
+  const { data: post } = await supabase.from('posts').select('camp_id, user_id').eq('id', postId).single()
+  if (!post) return { error: 'Post introuvable' }
+  if (post.user_id !== user.id) return { error: 'Non autorisé' }
+
   const { error } = await supabase.from('posts').delete().eq('id', postId)
   if (error) return { error: error.message }
 
-  if (post?.camp_id) revalidatePath(`/camp/${post.camp_id}`)
+  if (post.camp_id) revalidatePath(`/camp/${post.camp_id}`)
+  revalidatePath('/compte')
+  return { success: true }
+}
+
+export async function updatePost(postId: string, content: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Non authentifié' }
+
+  const { data: post } = await supabase.from('posts').select('camp_id, user_id').eq('id', postId).single()
+  if (!post) return { error: 'Post introuvable' }
+  if (post.user_id !== user.id) return { error: 'Non autorisé' }
+
+  const { error } = await supabase.from('posts').update({ content }).eq('id', postId)
+  if (error) return { error: error.message }
+
+  if (post.camp_id) revalidatePath(`/camp/${post.camp_id}`)
   revalidatePath('/compte')
   return { success: true }
 }

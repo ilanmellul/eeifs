@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition, useRef } from 'react'
+import { useState, useTransition, useRef, useCallback } from 'react'
 import { createPost } from '@/lib/actions/posts'
 import { uploadPhoto } from '@/lib/actions/upload'
 import { Button } from './ui/Button'
@@ -10,6 +10,42 @@ import { Camera, Info, CalendarDays, X, ImagePlus } from 'lucide-react'
 interface PostFormProps {
   campId: string
   onSuccess?: () => void
+}
+
+const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp']
+const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5 Mo
+const MAX_PHOTOS = 10
+
+async function compressImage(file: File): Promise<File> {
+  const MAX_WIDTH = 1200
+  const QUALITY = 0.82
+  return new Promise((resolve) => {
+    const img = new window.Image()
+    const objectUrl = URL.createObjectURL(file)
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl)
+      const scale = img.width > MAX_WIDTH ? MAX_WIDTH / img.width : 1
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.round(img.width * scale)
+      canvas.height = Math.round(img.height * scale)
+      const ctx = canvas.getContext('2d')
+      if (!ctx) { resolve(file); return }
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) { resolve(file); return }
+          resolve(new File([blob], file.name.replace(/\.[^.]+$/, '.jpg'), {
+            type: 'image/jpeg',
+            lastModified: Date.now(),
+          }))
+        },
+        'image/jpeg',
+        QUALITY,
+      )
+    }
+    img.onerror = () => { URL.revokeObjectURL(objectUrl); resolve(file) }
+    img.src = objectUrl
+  })
 }
 
 const POST_TYPES: { value: PostType; label: string; icon: React.ReactNode }[] = [
@@ -30,16 +66,44 @@ export default function PostForm({ campId, onSuccess }: PostFormProps) {
   }
   const [previews, setPreviews] = useState<{ file: File; url: string }[]>([])
   const [isPending, startTransition] = useTransition()
+  const [compressing, setCompressing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
   const formRef = useRef<HTMLFormElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  function handleFiles(e: React.ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(e.target.files ?? [])
-    const newPreviews = files.map((file) => ({ file, url: URL.createObjectURL(file) }))
+  const handleFiles = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const incoming = Array.from(e.target.files ?? [])
+    if (fileInputRef.current) fileInputRef.current.value = ''
+
+    const remaining = MAX_PHOTOS - previews.length
+    const accepted: File[] = []
+
+    for (const file of incoming) {
+      if (!ALLOWED_TYPES.includes(file.type)) {
+        setError(`${file.name} : format non supporté (JPEG, PNG ou WebP uniquement)`)
+        return
+      }
+      if (file.size > MAX_FILE_SIZE) {
+        setError(`${file.name} : dépasse la limite de 5 Mo`)
+        return
+      }
+      if (accepted.length >= remaining) {
+        setError(`Maximum ${MAX_PHOTOS} photos par post`)
+        break
+      }
+      accepted.push(file)
+    }
+
+    if (accepted.length === 0) return
+    setError(null)
+    setCompressing(true)
+
+    const compressed = await Promise.all(accepted.map(compressImage))
+    const newPreviews = compressed.map((file) => ({ file, url: URL.createObjectURL(file) }))
     setPreviews((prev) => [...prev, ...newPreviews])
-  }
+    setCompressing(false)
+  }, [previews.length])
 
   function removePhoto(index: number) {
     setPreviews((prev) => {
@@ -122,19 +186,28 @@ export default function PostForm({ campId, onSuccess }: PostFormProps) {
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/*"
+          accept="image/jpeg,image/png,image/webp"
           multiple
-          onChange={handleFiles}
+          onChange={(e) => { handleFiles(e).catch(() => setError('Erreur lors du chargement des photos')) }}
           className="hidden"
         />
-        <button
-          type="button"
-          onClick={() => fileInputRef.current?.click()}
-          className="flex items-center gap-2 text-sm text-orange-400 hover:text-orange-500 font-medium transition-colors"
-        >
-          <ImagePlus className="w-4 h-4" />
-          Ajouter des photos
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={compressing || previews.length >= MAX_PHOTOS}
+            className="flex items-center gap-2 text-sm text-orange-400 hover:text-orange-500 font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <ImagePlus className="w-4 h-4" />
+            Ajouter des photos
+          </button>
+          {compressing && (
+            <span className="text-xs text-gray-400 animate-pulse">Compression en cours…</span>
+          )}
+          {previews.length > 0 && !compressing && (
+            <span className="text-xs text-gray-400">{previews.length}/{MAX_PHOTOS}</span>
+          )}
+        </div>
 
         {previews.length > 0 && (
           <div className="mt-3 grid grid-cols-3 gap-2">

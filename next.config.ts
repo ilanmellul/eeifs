@@ -13,6 +13,10 @@ const nextConfig: NextConfig = {
         pathname: '/storage/v1/object/**',
       },
     ],
+    minimumCacheTTL: 60 * 60 * 24, // 24h — aligné sur l'expiry des signed URLs Supabase
+    formats: ['image/avif', 'image/webp'],
+    deviceSizes: [390, 640, 750, 1080],
+    imageSizes: [48, 96, 128, 200, 256],
   },
 };
 
